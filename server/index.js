@@ -6,6 +6,7 @@ const cors=require('cors');
 const User=require('./models/user.model.js');
 const cookieParser=require('cookie-parser');
 const bcrypt=require('bcryptjs');
+const ws=require('ws');
 
 
 const app = express();
@@ -96,3 +97,32 @@ const server=app.listen(8080, () => {
     console.log('Server is running on port 8080');
 });
 
+const wss=new ws.WebSocketServer({server});
+wss.on('connection', (connection,req) => {
+   
+    const cookies = req.headers.cookie;
+  
+    if (cookies) {
+        const tokenCookieString = cookies.split(';').find(str => str.trim().startsWith('token='));
+        if(tokenCookieString){
+            const token=tokenCookieString.split('=')[1];
+            if(token){
+                jwt.verify(token,jwtsecret,{},(err,userdata)=>{
+                    if (err) throw err;
+                    const {userId,username}=userdata;
+                    connection.userId=userId;
+                    connection.username=username;
+                });
+            }
+        } 
+    
+    } else {
+        console.log('No cookies found');
+    }
+
+    [...wss.clients].forEach(client=>{
+        client.send(JSON.stringify({
+            online:[...wss.clients].map(client=>({userId:client.userId,username:client.username})),
+        }));
+    })
+});
